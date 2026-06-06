@@ -9,9 +9,12 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Tooltip from '@mui/material/Tooltip';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import ColorizeIcon from '@mui/icons-material/Colorize';
+import TuneIcon from '@mui/icons-material/Tune';
 import type { ImageFormat } from '../../image/imageTypes';
 
 export type ExportFormat = Extract<ImageFormat, 'png' | 'jpg' | 'gb7'>;
@@ -19,12 +22,26 @@ export type ExportFormat = Extract<ImageFormat, 'png' | 'jpg' | 'gb7'>;
 type Props = {
   hasImage: boolean;
   zoom: 'fit' | number;
+  activeTool: 'none' | 'eyedropper';
+  isChannelPanelOpen: boolean;
   onLoad: (file: File) => void;
   onExport: (format: ExportFormat) => void;
   onZoom: (zoom: 'fit' | number) => void;
+  onToolChange: (tool: 'none' | 'eyedropper') => void;
+  onToggleChannelPanel: () => void;
 };
 
-export function ImageToolbar({ hasImage, zoom, onLoad, onExport, onZoom }: Props) {
+export function ImageToolbar({
+  hasImage,
+  zoom,
+  activeTool,
+  isChannelPanelOpen,
+  onLoad,
+  onExport,
+  onZoom,
+  onToolChange,
+  onToggleChannelPanel,
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
@@ -46,7 +63,10 @@ export function ImageToolbar({ hasImage, zoom, onLoad, onExport, onZoom }: Props
       sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}
     >
       <Toolbar variant="dense" disableGutters sx={{ px: 2, gap: 1, minHeight: 48 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main', mr: 1, flexShrink: 0 }}>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontWeight: 700, color: 'primary.main', mr: 1, flexShrink: 0 }}
+        >
           WebPhotoshop
         </Typography>
 
@@ -63,7 +83,7 @@ export function ImageToolbar({ hasImage, zoom, onLoad, onExport, onZoom }: Props
           size="small"
           variant="contained"
           startIcon={<FolderOpenIcon />}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => { fileInputRef.current?.click(); }}
         >
           Открыть
         </Button>
@@ -75,19 +95,53 @@ export function ImageToolbar({ hasImage, zoom, onLoad, onExport, onZoom }: Props
           startIcon={<SaveAltIcon />}
           endIcon={<KeyboardArrowDownIcon />}
           disabled={!hasImage}
-          onClick={(e) => setMenuAnchor(e.currentTarget)}
+          onClick={(e) => { setMenuAnchor(e.currentTarget); }}
         >
           Экспорт
         </Button>
         <Menu
           anchorEl={menuAnchor}
           open={menuAnchor !== null}
-          onClose={() => setMenuAnchor(null)}
+          onClose={() => { setMenuAnchor(null); }}
         >
-          <MenuItem onClick={() => handleExportSelect('png')}>PNG</MenuItem>
-          <MenuItem onClick={() => handleExportSelect('jpg')}>JPG</MenuItem>
-          <MenuItem onClick={() => handleExportSelect('gb7')}>GB7</MenuItem>
+          <MenuItem onClick={() => { handleExportSelect('png'); }}>PNG</MenuItem>
+          <MenuItem onClick={() => { handleExportSelect('jpg'); }}>JPG</MenuItem>
+          <MenuItem onClick={() => { handleExportSelect('gb7'); }}>GB7</MenuItem>
         </Menu>
+
+        <Divider orientation="vertical" flexItem />
+
+        <Tooltip title={activeTool === 'eyedropper' ? 'Деактивировать пипетку' : 'Пипетка — выбрать цвет пикселя'}>
+          <span>
+            <Button
+              size="small"
+              variant={activeTool === 'eyedropper' ? 'contained' : 'outlined'}
+              startIcon={<ColorizeIcon />}
+              disabled={!hasImage}
+              onClick={() => {
+                onToolChange(activeTool === 'eyedropper' ? 'none' : 'eyedropper');
+              }}
+              aria-label="Пипетка"
+            >
+              Пипетка
+            </Button>
+          </span>
+        </Tooltip>
+
+        <Tooltip title={isChannelPanelOpen ? 'Скрыть панель каналов' : 'Показать панель каналов'}>
+          <span>
+            <Button
+              size="small"
+              variant={isChannelPanelOpen ? 'contained' : 'outlined'}
+              startIcon={<TuneIcon />}
+              disabled={!hasImage}
+              onClick={onToggleChannelPanel}
+              aria-label="Каналы"
+            >
+              Каналы
+            </Button>
+          </span>
+        </Tooltip>
 
         <Box sx={{ flex: 1 }} />
 
@@ -97,7 +151,7 @@ export function ImageToolbar({ hasImage, zoom, onLoad, onExport, onZoom }: Props
           size="small"
           variant={zoom === 'fit' ? 'contained' : 'outlined'}
           disabled={!hasImage}
-          onClick={() => onZoom('fit')}
+          onClick={() => { onZoom('fit'); }}
           sx={{ minWidth: 48 }}
         >
           Fit
@@ -106,7 +160,7 @@ export function ImageToolbar({ hasImage, zoom, onLoad, onExport, onZoom }: Props
           size="small"
           variant={zoom === 1.0 ? 'contained' : 'outlined'}
           disabled={!hasImage}
-          onClick={() => onZoom(1.0)}
+          onClick={() => { onZoom(1.0); }}
           sx={{ minWidth: 48 }}
         >
           100%
