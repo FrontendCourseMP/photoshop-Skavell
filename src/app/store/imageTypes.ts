@@ -40,5 +40,6 @@ export type Action =
   | { type: 'SET_TOOL'; payload: 'none' | 'eyedropper' }
   | { type: 'SET_PICKED_PIXEL'; payload: PixelInfo | null }
   | { type: 'APPLY_LEVELS'; payload: ImageData }
+  | { type: 'APPLY_KERNEL'; payload: ImageData }
   | { type: 'SET_INTERPOLATION'; payload: InterpolationMethod }
   | { type: 'RESIZE_IMAGE'; payload: { imageData: ImageData; width: number; height: number } };

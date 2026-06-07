@@ -70,6 +70,13 @@ export function imageReducer(state: AppState, action: Action): AppState {
         originalImage: { ...state.originalImage, imageData: action.payload },
         workingImageData: action.payload,
       };
+    case 'APPLY_KERNEL':
+      if (state.originalImage === null) return state;
+      return {
+        ...state,
+        originalImage: { ...state.originalImage, imageData: action.payload },
+        workingImageData: action.payload,
+      };
     case 'SET_INTERPOLATION':
       return { ...state, interpolationMethod: action.payload };
     case 'RESIZE_IMAGE':
