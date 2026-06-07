@@ -26,26 +26,24 @@ export function buildChannelThumbnail(src: ImageData, channel: ChannelKey): Imag
       const srcIdx = (sy * src.width + sx) * 4;
       const dstIdx = (ty * thumbW + tx) * 4;
 
-      let gray = 0;
-      switch (channel) {
-        case 'r':    gray = srcData[srcIdx];     break;
-        case 'g':    gray = srcData[srcIdx + 1]; break;
-        case 'b':    gray = srcData[srcIdx + 2]; break;
-        case 'a':    gray = srcData[srcIdx + 3]; break;
-        case 'gray':
-          gray = Math.round(
-            0.299 * srcData[srcIdx] +
-            0.587 * srcData[srcIdx + 1] +
-            0.114 * srcData[srcIdx + 2],
-          );
-          break;
-        default: {
-          const _exhaustive: never = channel;
-          void _exhaustive;
-          gray = 0;
-          break;
+      const gray = (() => {
+        switch (channel) {
+          case 'r':    return srcData[srcIdx];
+          case 'g':    return srcData[srcIdx + 1];
+          case 'b':    return srcData[srcIdx + 2];
+          case 'a':    return srcData[srcIdx + 3];
+          case 'gray':
+            return Math.round(
+              0.299 * srcData[srcIdx] +
+              0.587 * srcData[srcIdx + 1] +
+              0.114 * srcData[srcIdx + 2],
+            );
+          default: {
+            channel satisfies never;
+            return 0;
+          }
         }
-      }
+      })();
 
       dstData[dstIdx]     = gray;
       dstData[dstIdx + 1] = gray;

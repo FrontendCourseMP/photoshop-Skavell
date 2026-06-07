@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { ChangeEvent } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -57,16 +57,6 @@ export function ResizeDialog({ open, image, interpolationMethod, onApply, onClos
   const origH = image.height;
   const aspect = origW / origH;
 
-  // Reset inputs when dialog opens
-  useEffect(() => {
-    if (open) {
-      setUnit('px');
-      setWidthInput(String(origW));
-      setHeightInput(String(origH));
-      setLockAspect(true);
-      setLocalMethod(interpolationMethod);
-    }
-  }, [open, origW, origH, interpolationMethod]);
 
   // Validate and compute output px dimensions
   function parseInput(val: string): number | null {
