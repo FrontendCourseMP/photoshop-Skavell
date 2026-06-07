@@ -11,6 +11,7 @@ export const initialState: AppState = {
   activeChannels: DEFAULT_CHANNELS,
   activeTool: 'none',
   pickedPixel: null,
+  interpolationMethod: 'bilinear',
 };
 
 export function imageReducer(state: AppState, action: Action): AppState {
@@ -36,8 +37,6 @@ export function imageReducer(state: AppState, action: Action): AppState {
       return { ...state, notification: action.payload };
     case 'TOGGLE_CHANNEL': {
       if (action.payload === 'gray') {
-        // 'gray' is a GB7 convenience alias: toggles r+g+b together.
-        // If all three are on → turn all off; otherwise → turn all on.
         const allOn =
           state.activeChannels.r &&
           state.activeChannels.g &&
@@ -70,6 +69,21 @@ export function imageReducer(state: AppState, action: Action): AppState {
         ...state,
         originalImage: { ...state.originalImage, imageData: action.payload },
         workingImageData: action.payload,
+      };
+    case 'SET_INTERPOLATION':
+      return { ...state, interpolationMethod: action.payload };
+    case 'RESIZE_IMAGE':
+      if (state.originalImage === null) return state;
+      return {
+        ...state,
+        originalImage: {
+          ...state.originalImage,
+          imageData: action.payload.imageData,
+          width: action.payload.width,
+          height: action.payload.height,
+        },
+        workingImageData: action.payload.imageData,
+        pickedPixel: null,
       };
     default:
       return state;
