@@ -31,13 +31,13 @@ const PRESETS: Record<RealPresetName, PresetDef> = {
 };
 
 const PRESET_LABELS: Record<PresetName, string> = {
-  identity: 'Identity',
-  sharpen: 'Sharpen',
-  gaussian: 'Gaussian 3×3',
-  boxblur: 'Box Blur',
-  prewittX: 'Prewitt X',
-  prewittY: 'Prewitt Y',
-  custom: 'Custom',
+  identity: 'Единичное ядро',
+  sharpen: 'Повышение резкости',
+  gaussian: 'Размытие по Гауссу 3×3',
+  boxblur: 'Прямоугольное размытие',
+  prewittX: 'Оператор Превитта X',
+  prewittY: 'Оператор Превитта Y',
+  custom: 'Произвольное',
 };
 
 const PRESET_ORDER: PresetName[] = ['identity', 'sharpen', 'gaussian', 'boxblur', 'prewittX', 'prewittY', 'custom'];
@@ -65,7 +65,7 @@ export function KernelDialog({
   const [preset, setPreset] = useState<PresetName>('identity');
   const [lastPreset, setLastPreset] = useState<RealPresetName>('identity');
   const [normalize, setNormalize] = useState(false);
-  const [channels, setChannels] = useState({ r: true, g: true, b: true, a: false });
+  const [channels, setChannels] = useState({ r: true, g: true, b: true });
   const [edge, setEdge] = useState<EdgeStrategy>('black');
   const [preview, setPreview] = useState(true);
   const rafRef = useRef<number>(0);
@@ -100,7 +100,6 @@ export function KernelDialog({
     if (channels.r) list.push('r');
     if (channels.g) list.push('g');
     if (channels.b) list.push('b');
-    if (channels.a) list.push('a');
     return list;
   }
 
@@ -121,7 +120,10 @@ export function KernelDialog({
       const kernel = parseKernel();
       if (kernel === null) return;
       const channelList = getChannelList();
-      if (channelList.length === 0) return;
+      if (channelList.length === 0) {
+        onPreview(snapshotImageData);
+        return;
+      }
 
       run({
         buffer: originalImageData.data.buffer,
@@ -217,7 +219,7 @@ export function KernelDialog({
       <DialogContent>
 
         {/* Preset Select */}
-        <FormControl size="small" fullWidth sx={{ mb: 2 }}>
+        <FormControl size="small" fullWidth sx={{ mb: 2, mt: 1 }}>
           <InputLabel>Пресет</InputLabel>
           <Select
             value={preset}
@@ -294,16 +296,6 @@ export function KernelDialog({
               />
             }
             label="B"
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={channels.a}
-                onChange={e => { setChannels(prev => ({ ...prev, a: e.target.checked })); }}
-                size="small"
-              />
-            }
-            label="A"
           />
         </Box>
 
