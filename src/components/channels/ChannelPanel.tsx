@@ -20,12 +20,15 @@ function getChannels(image: LoadedImage): ChannelDef[] {
     }
     return chs;
   }
-  return [
+  const channels: ChannelDef[] = [
     { key: 'r', label: 'R' },
     { key: 'g', label: 'G' },
     { key: 'b', label: 'B' },
-    { key: 'a', label: 'A' },
   ];
+  if (image.hasAlpha === true) {
+    channels.push({ key: 'a', label: 'A' });
+  }
+  return channels;
 }
 
 function isActive(key: ChannelKey, activeChannels: ActiveChannels): boolean {
