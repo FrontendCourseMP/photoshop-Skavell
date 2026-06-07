@@ -1,9 +1,11 @@
 // src/components/canvas/CanvasViewer.tsx
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import type { MouseEvent } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { renderToCanvas } from '../../image/canvasUtils';
+import { scaleImageData } from '../../image/interpolation';
+import type { InterpolationMethod } from '../../image/interpolation';
 import { rgbToLab } from '../../image/colorConvert';
 import type { PixelInfo } from '../../app/store/imageTypes';
 
@@ -12,7 +14,9 @@ type Props = {
   originalImageData: ImageData | null;
   zoom: 'fit' | number;
   activeTool: 'none' | 'eyedropper';
+  interpolationMethod: InterpolationMethod;
   onPixelPick: (info: PixelInfo) => void;
+  onEffectiveZoom: (zoom: number) => void;
 };
 
 export function CanvasViewer({
@@ -20,15 +24,66 @@ export function CanvasViewer({
   originalImageData,
   zoom,
   activeTool,
+  interpolationMethod,
   onPixelPick,
+  onEffectiveZoom,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const containerSizeRef = useRef({ w: 0, h: 0 });
+  const rafIdRef = useRef<number>(0);
+  const [resizeTick, setResizeTick] = useState(0);
 
+  // Mount ResizeObserver once
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el === null) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry === undefined) return;
+      containerSizeRef.current = {
+        w: entry.contentRect.width,
+        h: entry.contentRect.height,
+      };
+      setResizeTick((t) => t + 1);
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); };
+  }, []);
+
+  // Render effect: runs on image/zoom/method/container-size change
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null || imageData === null) return;
-    renderToCanvas(canvas, imageData);
-  }, [imageData]);
+
+    const { w: cW, h: cH } = containerSizeRef.current;
+    let effectiveZoom: number;
+
+    if (zoom === 'fit' && cW > 0 && cH > 0) {
+      const scale = Math.min(
+        (cW - 100) / imageData.width,
+        (cH - 100) / imageData.height,
+      );
+      effectiveZoom = Math.min(300, Math.max(12, Math.round(scale * 100)));
+    } else if (typeof zoom === 'number') {
+      effectiveZoom = zoom;
+    } else {
+      effectiveZoom = 100;
+    }
+
+    onEffectiveZoom(effectiveZoom);
+
+    const dstW = Math.max(1, Math.round(imageData.width * effectiveZoom / 100));
+    const dstH = Math.max(1, Math.round(imageData.height * effectiveZoom / 100));
+
+    cancelAnimationFrame(rafIdRef.current);
+    rafIdRef.current = requestAnimationFrame(() => {
+      const scaled = scaleImageData(imageData, dstW, dstH, interpolationMethod);
+      renderToCanvas(canvas, scaled);
+    });
+
+    return () => { cancelAnimationFrame(rafIdRef.current); };
+  }, [imageData, zoom, interpolationMethod, resizeTick, onEffectiveZoom]);
 
   const handleClick = useCallback(
     (e: MouseEvent<HTMLCanvasElement>) => {
@@ -37,20 +92,21 @@ export function CanvasViewer({
       if (canvas === null) return;
 
       const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / canvas.offsetWidth;
-      const scaleY = canvas.height / canvas.offsetHeight;
+      // canvas.width = scaled width; map click coordinates back to original image space
+      const canvasX = Math.floor(e.clientX - rect.left);
+      const canvasY = Math.floor(e.clientY - rect.top);
 
       const x = Math.max(
         0,
         Math.min(
-          Math.floor((e.clientX - rect.left) * scaleX),
+          Math.floor((canvasX / canvas.width) * originalImageData.width),
           originalImageData.width - 1,
         ),
       );
       const y = Math.max(
         0,
         Math.min(
-          Math.floor((e.clientY - rect.top) * scaleY),
+          Math.floor((canvasY / canvas.height) * originalImageData.height),
           originalImageData.height - 1,
         ),
       );
@@ -66,50 +122,33 @@ export function CanvasViewer({
     [activeTool, originalImageData, onPixelPick],
   );
 
-  if (imageData === null) {
-    return (
-      <Box
-        sx={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: '#1a1a1a',
-        }}
-      >
+  return (
+    <Box
+      ref={containerRef}
+      sx={{
+        flex: 1,
+        overflow: 'auto',
+        display: 'flex',
+        alignItems: imageData === null ? 'center' : 'flex-start',
+        justifyContent: imageData === null ? 'center' : 'flex-start',
+        bgcolor: '#1a1a1a',
+        p: imageData === null ? 0 : 1,
+      }}
+    >
+      {imageData === null ? (
         <Typography variant="body2" color="text.disabled">
           Нажми «Открыть» для загрузки изображения
         </Typography>
-      </Box>
-    );
-  }
-
-  const isFit = zoom === 'fit';
-
-  return (
-    <Box
-      sx={{
-        flex: 1,
-        overflow: isFit ? 'hidden' : 'auto',
-        display: 'flex',
-        alignItems: isFit ? 'center' : 'flex-start',
-        justifyContent: isFit ? 'center' : 'flex-start',
-        bgcolor: '#1a1a1a',
-        p: 1,
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        onClick={handleClick}
-        style={{
-          ...(isFit
-            ? { maxWidth: '100%', maxHeight: '100%' }
-            : {}),
-          display: 'block',
-          imageRendering: 'pixelated',
-          cursor: activeTool === 'eyedropper' ? 'crosshair' : 'default',
-        }}
-      />
+      ) : (
+        <canvas
+          ref={canvasRef}
+          onClick={handleClick}
+          style={{
+            display: 'block',
+            cursor: activeTool === 'eyedropper' ? 'crosshair' : 'default',
+          }}
+        />
+      )}
     </Box>
   );
 }
