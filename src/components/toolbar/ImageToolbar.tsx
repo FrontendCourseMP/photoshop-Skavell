@@ -16,6 +16,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ColorizeIcon from '@mui/icons-material/Colorize';
 import TuneIcon from '@mui/icons-material/Tune';
 import TonalityIcon from '@mui/icons-material/Tonality';
+import AspectRatioIcon from '@mui/icons-material/AspectRatio';
 import type { ImageFormat } from '../../image/imageTypes';
 
 export type ExportFormat = Extract<ImageFormat, 'png' | 'jpg' | 'gb7'>;
@@ -31,6 +32,7 @@ type Props = {
   onToolChange: (tool: 'none' | 'eyedropper') => void;
   onToggleChannelPanel: () => void;
   onOpenLevels: () => void;
+  onOpenResize: () => void;
 };
 
 export function ImageToolbar({
@@ -44,6 +46,7 @@ export function ImageToolbar({
   onToolChange,
   onToggleChannelPanel,
   onOpenLevels,
+  onOpenResize,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -161,6 +164,21 @@ export function ImageToolbar({
           </span>
         </Tooltip>
 
+        <Tooltip title="Изменить размер изображения">
+          <span>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<AspectRatioIcon />}
+              disabled={!hasImage}
+              onClick={onOpenResize}
+              aria-label="Изменить размер"
+            >
+              Размер
+            </Button>
+          </span>
+        </Tooltip>
+
         <Box sx={{ flex: 1 }} />
 
         <Divider orientation="vertical" flexItem />
@@ -176,9 +194,9 @@ export function ImageToolbar({
         </Button>
         <Button
           size="small"
-          variant={zoom === 1.0 ? 'contained' : 'outlined'}
+          variant={zoom === 100 ? 'contained' : 'outlined'}
           disabled={!hasImage}
-          onClick={() => { onZoom(1.0); }}
+          onClick={() => { onZoom(100); }}
           sx={{ minWidth: 48 }}
         >
           100%
