@@ -12,6 +12,7 @@ import { ChannelPanel } from '../components/channels/ChannelPanel';
 import { EyedropperBar } from '../components/eyedropper/EyedropperBar';
 import { LevelsDialog } from '../components/levels/LevelsDialog';
 import { ResizeDialog } from '../components/resize/ResizeDialog';
+import { KernelDialog } from '../components/kernel/KernelDialog';
 import { loadImageFile } from '../image/loadImageFile';
 import { exportImageAsBlob } from '../image/exportImage';
 import { applyChannelFilter } from '../image/channelFilter';
@@ -28,6 +29,8 @@ export default function App() {
   const [isLevelsOpen, setIsLevelsOpen] = useState(false);
   const [isResizeOpen, setIsResizeOpen] = useState(false);
   const [levelsSnapshot, setLevelsSnapshot] = useState<ImageData | null>(null);
+  const [isKernelOpen, setIsKernelOpen] = useState(false);
+  const [kernelSnapshot, setKernelSnapshot] = useState<ImageData | null>(null);
   const [displayZoom, setDisplayZoom] = useState<number | null>(null);
 
   // Recompute workingImageData when channels or image change.
@@ -103,6 +106,12 @@ export default function App() {
     setIsLevelsOpen(true);
   }, [state.workingImageData, state.originalImage]);
 
+  const handleOpenKernel = useCallback(() => {
+    if (state.workingImageData === null || state.originalImage === null) return;
+    setKernelSnapshot(state.workingImageData);
+    setIsKernelOpen(true);
+  }, [state.workingImageData, state.originalImage]);
+
   const handleApplyResize = useCallback(
     (payload: { imageData: ImageData; width: number; height: number }) => {
       dispatch({ type: 'RESIZE_IMAGE', payload });
@@ -137,6 +146,7 @@ export default function App() {
           onToggleChannelPanel={handleToggleChannelPanel}
           onOpenLevels={handleOpenLevels}
           onOpenResize={() => { setIsResizeOpen(true); }}
+          onOpenKernel={handleOpenKernel}
         />
 
         {isChannelPanelOpen && state.originalImage !== null && (
@@ -189,6 +199,17 @@ export default function App() {
             onPreview={(imageData) => { dispatch({ type: 'SET_WORKING_IMAGE', payload: imageData }); }}
             onApply={(imageData) => { dispatch({ type: 'APPLY_LEVELS', payload: imageData }); }}
             onClose={() => { setIsLevelsOpen(false); }}
+          />
+        )}
+
+        {isKernelOpen && state.originalImage !== null && kernelSnapshot !== null && (
+          <KernelDialog
+            open={isKernelOpen}
+            originalImageData={state.originalImage.imageData}
+            snapshotImageData={kernelSnapshot}
+            onPreview={(imageData) => { dispatch({ type: 'SET_WORKING_IMAGE', payload: imageData }); }}
+            onApply={(imageData) => { dispatch({ type: 'APPLY_KERNEL', payload: imageData }); }}
+            onClose={() => { setIsKernelOpen(false); }}
           />
         )}
 

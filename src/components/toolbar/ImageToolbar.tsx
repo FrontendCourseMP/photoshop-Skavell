@@ -17,6 +17,7 @@ import ColorizeIcon from '@mui/icons-material/Colorize';
 import TuneIcon from '@mui/icons-material/Tune';
 import TonalityIcon from '@mui/icons-material/Tonality';
 import AspectRatioIcon from '@mui/icons-material/AspectRatio';
+import BlurOnIcon from '@mui/icons-material/BlurOn';
 import type { ImageFormat } from '../../image/imageTypes';
 
 export type ExportFormat = Extract<ImageFormat, 'png' | 'jpg' | 'gb7'>;
@@ -33,6 +34,7 @@ type Props = {
   onToggleChannelPanel: () => void;
   onOpenLevels: () => void;
   onOpenResize: () => void;
+  onOpenKernel: () => void;
 };
 
 export function ImageToolbar({
@@ -47,6 +49,7 @@ export function ImageToolbar({
   onToggleChannelPanel,
   onOpenLevels,
   onOpenResize,
+  onOpenKernel,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -175,6 +178,21 @@ export function ImageToolbar({
               aria-label="Изменить размер"
             >
               Размер
+            </Button>
+          </span>
+        </Tooltip>
+
+        <Tooltip title="Свёрточные фильтры / Ядра">
+          <span>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<BlurOnIcon />}
+              disabled={!hasImage}
+              onClick={onOpenKernel}
+              aria-label="Фильтры"
+            >
+              Фильтры
             </Button>
           </span>
         </Tooltip>
