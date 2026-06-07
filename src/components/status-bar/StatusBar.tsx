@@ -126,24 +126,25 @@ export function StatusBar({
       </Typography>
 
       {/* Interpolation method */}
+      <Select
+        size="small"
+        value={interpolationMethod}
+        onChange={handleMethodChange}
+        disabled={disabled}
+        variant="standard"
+        disableUnderline
+        sx={{ fontSize: 11, color: 'text.secondary', minWidth: 130 }}
+      >
+        {(['bilinear', 'nearest'] as InterpolationMethod[]).map((m) => (
+          <MenuItem key={m} value={m} sx={{ fontSize: 12 }}>
+            {METHOD_LABELS[m]}
+          </MenuItem>
+        ))}
+      </Select>
       <Tooltip title={METHOD_TOOLTIPS[interpolationMethod]} placement="top">
-        <span>
-          <Select
-            size="small"
-            value={interpolationMethod}
-            onChange={handleMethodChange}
-            disabled={disabled}
-            variant="standard"
-            disableUnderline
-            sx={{ fontSize: 11, color: 'text.secondary', minWidth: 130 }}
-          >
-            {(['bilinear', 'nearest'] as InterpolationMethod[]).map((m) => (
-              <MenuItem key={m} value={m} sx={{ fontSize: 12 }}>
-                {METHOD_LABELS[m]}
-              </MenuItem>
-            ))}
-          </Select>
-        </span>
+        <Box component="span" sx={{ display: 'flex', alignItems: 'center', cursor: 'help', color: 'text.disabled', fontSize: 14 }}>
+          &#9432;
+        </Box>
       </Tooltip>
 
       {/* Zoom preset dropdown */}
