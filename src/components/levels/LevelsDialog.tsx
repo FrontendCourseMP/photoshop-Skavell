@@ -36,6 +36,22 @@ const CHANNEL_LABELS: Record<LevelsChannel, string> = {
   master: 'Master', r: 'R', g: 'G', b: 'B', a: 'A',
 };
 
+/** Maps gamma value to a position in [blackPoint, whitePoint] on the 0–255 scale.
+ *  Left of center (t < 0.5) = gamma > 1 = lightens. */
+function calcGammaPos(black: number, white: number, gamma: number): number {
+  if (white <= black + 1) return black + 1;
+  const t = Math.pow(0.5, gamma);
+  return Math.round(black + (white - black) * t);
+}
+
+/** Recovers gamma from slider position. */
+function calcGammaFromPos(black: number, white: number, pos: number): number {
+  const range = white - black;
+  if (range <= 0) return 1.0;
+  const t = Math.max(0.001, Math.min(0.999, (pos - black) / range));
+  return Math.max(0.10, Math.min(9.99, Math.log(t) / Math.log(0.5)));
+}
+
 type Props = {
   open: boolean;
   originalImageData: ImageData;
@@ -53,21 +69,12 @@ export function LevelsDialog({
   onApply,
   onClose,
 }: Props) {
+  // Initial state matches defaults — no reset effect needed (dialog is conditionally mounted)
   const [settings, setSettings] = useState<Record<LevelsChannel, ChannelSettings>>(makeDefaultSettings);
   const [activeChannel, setActiveChannel] = useState<LevelsChannel>('master');
   const [preview, setPreview] = useState(true);
   const [logScale, setLogScale] = useState(false);
   const rafRef = useRef<number | null>(null);
-
-  // Reset all state when dialog opens
-  useEffect(() => {
-    if (open) {
-      setSettings(makeDefaultSettings());
-      setActiveChannel('master');
-      setPreview(true);
-      setLogScale(false);
-    }
-  }, [open]);
 
   const histData = useMemo(() => {
     const channel = activeChannel as HistChannel;
@@ -88,7 +95,7 @@ export function LevelsDialog({
     return applyLUT(originalImageData, luts);
   }, [settings, originalImageData]);
 
-  // Re-run preview on every settings or preview toggle change
+  // Re-run preview on settings or preview toggle change
   useEffect(() => {
     if (!preview) {
       onPreview(snapshotImageData);
@@ -137,8 +144,23 @@ export function LevelsDialog({
     setSettings(makeDefaultSettings());
   }
 
-  // Display sliders for master channel using R settings (all three are kept in sync)
+  // Master channel displays R (all three are kept in sync)
   const current: ChannelSettings = activeChannel === 'master' ? settings.r : settings[activeChannel];
+
+  const gammaPos = calcGammaPos(current.blackPoint, current.whitePoint, current.gamma);
+  const sliderValue: [number, number, number] = [current.blackPoint, gammaPos, current.whitePoint];
+
+  function handleInputLevelsChange(_: Event, newValues: number | number[]) {
+    const [newBlack, newGammaPos, newWhite] = newValues as number[];
+
+    if (newBlack !== current.blackPoint) {
+      updateChannel({ blackPoint: newBlack });
+    } else if (newWhite !== current.whitePoint) {
+      updateChannel({ whitePoint: newWhite });
+    } else if (newGammaPos !== gammaPos) {
+      updateChannel({ gamma: calcGammaFromPos(current.blackPoint, current.whitePoint, newGammaPos) });
+    }
+  }
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>
@@ -183,9 +205,8 @@ export function LevelsDialog({
           sx={{
             width: '100%',
             height: 120,
-            mb: 2,
             bgcolor: 'background.default',
-            borderRadius: 1,
+            borderRadius: '4px 4px 0 0',
             overflow: 'hidden',
           }}
         >
@@ -202,43 +223,43 @@ export function LevelsDialog({
           </ResponsiveContainer>
         </Box>
 
-        {/* Input level sliders */}
-        <Box sx={{ px: 1 }}>
-          <Typography variant="caption" sx={{ display: 'block' }}>
-            Точка чёрного: {current.blackPoint}
-          </Typography>
+        {/* Gradient scale bar — visual reference for the 0–255 input range */}
+        <Box sx={{
+          width: '100%',
+          height: 10,
+          background: 'linear-gradient(to right, #000000, #ffffff)',
+        }} />
+
+        {/* Input Levels: single 3-thumb slider (black point, gamma, white point) */}
+        <Box sx={{ px: 1, mb: 0 }}>
           <Slider
             min={0}
-            max={current.whitePoint - 1}
-            value={current.blackPoint}
-            onChange={(_e, v) => { updateChannel({ blackPoint: v as number }); }}
+            max={255}
+            value={sliderValue}
+            onChange={handleInputLevelsChange}
+            disableSwap
+            step={1}
             size="small"
-            sx={{ color: 'grey.600' }}
+            track={false}
+            sx={{
+              '& .MuiSlider-thumb:nth-of-type(3)': { color: '#222', border: '2px solid #888' },
+              '& .MuiSlider-thumb:nth-of-type(4)': { color: '#888', border: '2px solid #bbb' },
+              '& .MuiSlider-thumb:nth-of-type(5)': { color: '#fff', border: '2px solid #888' },
+            }}
           />
+        </Box>
 
-          <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+        {/* Value labels below slider */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, px: 1 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Чёрная: {current.blackPoint}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             Гамма: {current.gamma.toFixed(2)}
           </Typography>
-          <Slider
-            min={0.10}
-            max={9.99}
-            step={0.01}
-            value={current.gamma}
-            onChange={(_e, v) => { updateChannel({ gamma: v as number }); }}
-            size="small"
-          />
-
-          <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-            Точка белого: {current.whitePoint}
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Белая: {current.whitePoint}
           </Typography>
-          <Slider
-            min={current.blackPoint + 1}
-            max={255}
-            value={current.whitePoint}
-            onChange={(_e, v) => { updateChannel({ whitePoint: v as number }); }}
-            size="small"
-            sx={{ color: 'grey.100' }}
-          />
         </Box>
 
         <FormControlLabel
