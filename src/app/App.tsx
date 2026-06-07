@@ -1,4 +1,3 @@
-// src/app/App.tsx
 import { useReducer, useEffect, useState, useCallback } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -12,6 +11,7 @@ import { AppSnackbar } from '../components/notifications/AppSnackbar';
 import { ChannelPanel } from '../components/channels/ChannelPanel';
 import { EyedropperBar } from '../components/eyedropper/EyedropperBar';
 import { LevelsDialog } from '../components/levels/LevelsDialog';
+import { ResizeDialog } from '../components/resize/ResizeDialog';
 import { loadImageFile } from '../image/loadImageFile';
 import { exportImageAsBlob } from '../image/exportImage';
 import { applyChannelFilter } from '../image/channelFilter';
@@ -20,16 +20,17 @@ import { replaceExtension } from '../shared/utils/fileFormat';
 import type { ExportFormat } from '../components/toolbar/ImageToolbar';
 import type { PixelInfo } from './store/imageTypes';
 import type { ChannelKey } from '../image/imageTypes';
+import type { InterpolationMethod } from '../image/interpolation';
 
 export default function App() {
   const [state, dispatch] = useReducer(imageReducer, initialState);
   const [isChannelPanelOpen, setIsChannelPanelOpen] = useState(false);
   const [isLevelsOpen, setIsLevelsOpen] = useState(false);
+  const [isResizeOpen, setIsResizeOpen] = useState(false);
   const [levelsSnapshot, setLevelsSnapshot] = useState<ImageData | null>(null);
+  const [displayZoom, setDisplayZoom] = useState<number | null>(null);
 
   // Recompute workingImageData when channels or image change.
-  // LOAD_IMAGE already sets workingImageData directly to avoid flicker;
-  // this effect runs after and produces the filtered version.
   useEffect(() => {
     if (state.originalImage === null) return;
     const filtered = applyChannelFilter(
@@ -42,6 +43,7 @@ export default function App() {
   const handleLoad = useCallback(async (file: File) => {
     try {
       const image = await loadImageFile(file);
+      setDisplayZoom(null);  // reset before new image so controls disable until CanvasViewer reports zoom
       dispatch({ type: 'LOAD_IMAGE', payload: image });
     } catch (err) {
       dispatch({
@@ -71,6 +73,14 @@ export default function App() {
     dispatch({ type: 'SET_ZOOM', payload: zoom });
   }, []);
 
+  const handleEffectiveZoom = useCallback((zoom: number) => {
+    setDisplayZoom(zoom);
+  }, []);
+
+  const handleInterpolationChange = useCallback((method: InterpolationMethod) => {
+    dispatch({ type: 'SET_INTERPOLATION', payload: method });
+  }, []);
+
   const handleToggleChannel = useCallback((channel: ChannelKey) => {
     dispatch({ type: 'TOGGLE_CHANNEL', payload: channel });
   }, []);
@@ -92,6 +102,14 @@ export default function App() {
     setLevelsSnapshot(state.workingImageData);
     setIsLevelsOpen(true);
   }, [state.workingImageData, state.originalImage]);
+
+  const handleApplyResize = useCallback(
+    (payload: { imageData: ImageData; width: number; height: number }) => {
+      dispatch({ type: 'RESIZE_IMAGE', payload });
+      setIsResizeOpen(false);
+    },
+    [],
+  );
 
   const handleCloseError = useCallback(() => {
     dispatch({ type: 'SET_ERROR', payload: null });
@@ -118,6 +136,7 @@ export default function App() {
           onToolChange={handleToolChange}
           onToggleChannelPanel={handleToggleChannelPanel}
           onOpenLevels={handleOpenLevels}
+          onOpenResize={() => { setIsResizeOpen(true); }}
         />
 
         {isChannelPanelOpen && state.originalImage !== null && (
@@ -133,14 +152,23 @@ export default function App() {
           originalImageData={state.originalImage?.imageData ?? null}
           zoom={state.zoom}
           activeTool={state.activeTool}
+          interpolationMethod={state.interpolationMethod}
           onPixelPick={handlePixelPick}
+          onEffectiveZoom={handleEffectiveZoom}
         />
 
         {state.activeTool === 'eyedropper' && (
           <EyedropperBar pixel={state.pickedPixel} />
         )}
 
-        <StatusBar image={state.originalImage} />
+        <StatusBar
+          image={state.originalImage}
+          effectiveZoom={displayZoom}
+          interpolationMethod={state.interpolationMethod}
+          hasImage={state.originalImage !== null}
+          onZoom={handleZoom}
+          onInterpolationChange={handleInterpolationChange}
+        />
 
         <AppSnackbar
           message={state.error}
@@ -161,6 +189,16 @@ export default function App() {
             onPreview={(imageData) => { dispatch({ type: 'SET_WORKING_IMAGE', payload: imageData }); }}
             onApply={(imageData) => { dispatch({ type: 'APPLY_LEVELS', payload: imageData }); }}
             onClose={() => { setIsLevelsOpen(false); }}
+          />
+        )}
+
+        {isResizeOpen && state.originalImage !== null && (
+          <ResizeDialog
+            open={isResizeOpen}
+            image={state.originalImage}
+            interpolationMethod={state.interpolationMethod}
+            onApply={handleApplyResize}
+            onClose={() => { setIsResizeOpen(false); }}
           />
         )}
       </Box>
