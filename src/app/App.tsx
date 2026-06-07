@@ -11,6 +11,7 @@ import { StatusBar } from '../components/status-bar/StatusBar';
 import { AppSnackbar } from '../components/notifications/AppSnackbar';
 import { ChannelPanel } from '../components/channels/ChannelPanel';
 import { EyedropperBar } from '../components/eyedropper/EyedropperBar';
+import { LevelsDialog } from '../components/levels/LevelsDialog';
 import { loadImageFile } from '../image/loadImageFile';
 import { exportImageAsBlob } from '../image/exportImage';
 import { applyChannelFilter } from '../image/channelFilter';
@@ -23,6 +24,8 @@ import type { ChannelKey } from '../image/imageTypes';
 export default function App() {
   const [state, dispatch] = useReducer(imageReducer, initialState);
   const [isChannelPanelOpen, setIsChannelPanelOpen] = useState(false);
+  const [isLevelsOpen, setIsLevelsOpen] = useState(false);
+  const [levelsSnapshot, setLevelsSnapshot] = useState<ImageData | null>(null);
 
   // Recompute workingImageData when channels or image change.
   // LOAD_IMAGE already sets workingImageData directly to avoid flicker;
@@ -84,6 +87,12 @@ export default function App() {
     dispatch({ type: 'SET_PICKED_PIXEL', payload: info });
   }, []);
 
+  const handleOpenLevels = useCallback(() => {
+    if (state.workingImageData === null || state.originalImage === null) return;
+    setLevelsSnapshot(state.workingImageData);
+    setIsLevelsOpen(true);
+  }, [state.workingImageData, state.originalImage]);
+
   const handleCloseError = useCallback(() => {
     dispatch({ type: 'SET_ERROR', payload: null });
   }, []);
@@ -108,6 +117,7 @@ export default function App() {
           onZoom={handleZoom}
           onToolChange={handleToolChange}
           onToggleChannelPanel={handleToggleChannelPanel}
+          onOpenLevels={handleOpenLevels}
         />
 
         {isChannelPanelOpen && state.originalImage !== null && (
@@ -142,6 +152,17 @@ export default function App() {
           severity="success"
           onClose={handleCloseNotification}
         />
+
+        {isLevelsOpen && state.originalImage !== null && levelsSnapshot !== null && (
+          <LevelsDialog
+            open={isLevelsOpen}
+            originalImageData={state.originalImage.imageData}
+            snapshotImageData={levelsSnapshot}
+            onPreview={(imageData) => { dispatch({ type: 'SET_WORKING_IMAGE', payload: imageData }); }}
+            onApply={(imageData) => { dispatch({ type: 'APPLY_LEVELS', payload: imageData }); }}
+            onClose={() => { setIsLevelsOpen(false); }}
+          />
+        )}
       </Box>
     </ThemeProvider>
   );

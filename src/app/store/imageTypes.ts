@@ -36,4 +36,5 @@ export type Action =
   | { type: 'SET_NOTIFICATION'; payload: string | null }
   | { type: 'TOGGLE_CHANNEL'; payload: ChannelKey }
   | { type: 'SET_TOOL'; payload: 'none' | 'eyedropper' }
-  | { type: 'SET_PICKED_PIXEL'; payload: PixelInfo | null };
+  | { type: 'SET_PICKED_PIXEL'; payload: PixelInfo | null }
+  | { type: 'APPLY_LEVELS'; payload: ImageData };

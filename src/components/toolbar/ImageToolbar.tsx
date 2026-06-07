@@ -15,6 +15,7 @@ import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ColorizeIcon from '@mui/icons-material/Colorize';
 import TuneIcon from '@mui/icons-material/Tune';
+import TonalityIcon from '@mui/icons-material/Tonality';
 import type { ImageFormat } from '../../image/imageTypes';
 
 export type ExportFormat = Extract<ImageFormat, 'png' | 'jpg' | 'gb7'>;
@@ -29,6 +30,7 @@ type Props = {
   onZoom: (zoom: 'fit' | number) => void;
   onToolChange: (tool: 'none' | 'eyedropper') => void;
   onToggleChannelPanel: () => void;
+  onOpenLevels: () => void;
 };
 
 export function ImageToolbar({
@@ -41,6 +43,7 @@ export function ImageToolbar({
   onZoom,
   onToolChange,
   onToggleChannelPanel,
+  onOpenLevels,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -139,6 +142,21 @@ export function ImageToolbar({
               aria-label="Каналы"
             >
               Каналы
+            </Button>
+          </span>
+        </Tooltip>
+
+        <Tooltip title="Градационная коррекция — Уровни">
+          <span>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<TonalityIcon />}
+              disabled={!hasImage}
+              onClick={onOpenLevels}
+              aria-label="Уровни"
+            >
+              Уровни
             </Button>
           </span>
         </Tooltip>

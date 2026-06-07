@@ -64,6 +64,13 @@ export function imageReducer(state: AppState, action: Action): AppState {
       };
     case 'SET_PICKED_PIXEL':
       return { ...state, pickedPixel: action.payload };
+    case 'APPLY_LEVELS':
+      if (state.originalImage === null) return state;
+      return {
+        ...state,
+        originalImage: { ...state.originalImage, imageData: action.payload },
+        workingImageData: action.payload,
+      };
     default:
       return state;
   }
