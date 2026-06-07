@@ -57,11 +57,10 @@ export default function App() {
   }, []);
 
   const handleExport = useCallback(async (format: ExportFormat) => {
-    const { workingImageData, originalImage } = state;
-    if (workingImageData === null || originalImage === null) return;
+    if (state.workingImageData === null || state.originalImage === null) return;
     try {
-      const blob = await exportImageAsBlob(workingImageData, format);
-      const filename = replaceExtension(originalImage.name, format);
+      const blob = await exportImageAsBlob(state.workingImageData, format);
+      const filename = replaceExtension(state.originalImage.name, format);
       downloadBlob(blob, filename);
       dispatch({ type: 'SET_NOTIFICATION', payload: `Сохранено как ${filename}` });
     } catch (err) {
@@ -106,11 +105,27 @@ export default function App() {
     setIsLevelsOpen(true);
   }, [state.workingImageData, state.originalImage]);
 
+  const handleLevelsPreview = useCallback((imageData: ImageData) => {
+    dispatch({ type: 'SET_WORKING_IMAGE', payload: imageData });
+  }, []);
+
+  const handleLevelsApply = useCallback((imageData: ImageData) => {
+    dispatch({ type: 'APPLY_LEVELS', payload: imageData });
+  }, []);
+
   const handleOpenKernel = useCallback(() => {
     if (state.workingImageData === null || state.originalImage === null) return;
     setKernelSnapshot(state.workingImageData);
     setIsKernelOpen(true);
   }, [state.workingImageData, state.originalImage]);
+
+  const handleKernelPreview = useCallback((imageData: ImageData) => {
+    dispatch({ type: 'SET_WORKING_IMAGE', payload: imageData });
+  }, []);
+
+  const handleKernelApply = useCallback((imageData: ImageData) => {
+    dispatch({ type: 'APPLY_KERNEL', payload: imageData });
+  }, []);
 
   const handleApplyResize = useCallback(
     (payload: { imageData: ImageData; width: number; height: number }) => {
@@ -196,8 +211,8 @@ export default function App() {
             open={isLevelsOpen}
             originalImageData={state.originalImage.imageData}
             snapshotImageData={levelsSnapshot}
-            onPreview={(imageData) => { dispatch({ type: 'SET_WORKING_IMAGE', payload: imageData }); }}
-            onApply={(imageData) => { dispatch({ type: 'APPLY_LEVELS', payload: imageData }); }}
+            onPreview={handleLevelsPreview}
+            onApply={handleLevelsApply}
             onClose={() => { setIsLevelsOpen(false); }}
           />
         )}
@@ -207,8 +222,8 @@ export default function App() {
             open={isKernelOpen}
             originalImageData={state.originalImage.imageData}
             snapshotImageData={kernelSnapshot}
-            onPreview={(imageData) => { dispatch({ type: 'SET_WORKING_IMAGE', payload: imageData }); }}
-            onApply={(imageData) => { dispatch({ type: 'APPLY_KERNEL', payload: imageData }); }}
+            onPreview={handleKernelPreview}
+            onApply={handleKernelApply}
             onClose={() => { setIsKernelOpen(false); }}
           />
         )}

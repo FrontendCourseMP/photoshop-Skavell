@@ -72,19 +72,6 @@ export function KernelDialog({
 
   const { run, isRunning } = useKernelWorker();
 
-  // Reset state when dialog opens
-  useEffect(() => {
-    if (open) {
-      const p = PRESETS.identity;
-      setKernelFields(p.kernel.map(row => row.map(String)));
-      setPreset('identity');
-      setLastPreset('identity');
-      setNormalize(p.normalize);
-      setChannels({ r: true, g: true, b: true, a: false });
-      setEdge('black');
-      setPreview(true);
-    }
-  }, [open]);
 
   function parseKernel(): number[][] | null {
     const result: number[][] = [];
