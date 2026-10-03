@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useState, useCallback } from 'react';
+import { useReducer, useState, useCallback } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Box from '@mui/material/Box';
@@ -15,7 +15,6 @@ import { ResizeDialog } from '../components/resize/ResizeDialog';
 import { KernelDialog } from '../components/kernel/KernelDialog';
 import { loadImageFile } from '../image/loadImageFile';
 import { exportImageAsBlob } from '../image/exportImage';
-import { applyChannelFilter } from '../image/channelFilter';
 import { downloadBlob } from '../shared/utils/downloadBlob';
 import { replaceExtension } from '../shared/utils/fileFormat';
 import type { ExportFormat } from '../components/toolbar/ImageToolbar';
@@ -33,16 +32,6 @@ export default function App() {
   const [kernelSnapshot, setKernelSnapshot] = useState<ImageData | null>(null);
   const [displayZoom, setDisplayZoom] = useState<number | null>(null);
 
-  // Recompute workingImageData when channels or image change.
-  useEffect(() => {
-    if (state.originalImage === null) return;
-    const filtered = applyChannelFilter(
-      state.originalImage.imageData,
-      state.activeChannels,
-    );
-    dispatch({ type: 'SET_WORKING_IMAGE', payload: filtered });
-  }, [state.activeChannels, state.originalImage]);
-
   const handleLoad = useCallback(async (file: File) => {
     try {
       const image = await loadImageFile(file);
@@ -59,7 +48,7 @@ export default function App() {
   const handleExport = useCallback(async (format: ExportFormat) => {
     if (state.workingImageData === null || state.originalImage === null) return;
     try {
-      const blob = await exportImageAsBlob(state.workingImageData, format);
+      const blob = await exportImageAsBlob(state.workingImageData, format, state.originalImage.channelModel.alpha === 'mask' && state.activeChannels.a);
       const filename = replaceExtension(state.originalImage.name, format);
       downloadBlob(blob, filename);
       dispatch({ type: 'SET_NOTIFICATION', payload: `Сохранено как ${filename}` });
@@ -69,7 +58,7 @@ export default function App() {
         payload: err instanceof Error ? err.message : 'Ошибка экспорта',
       });
     }
-  }, [state.workingImageData, state.originalImage]);
+  }, [state.workingImageData, state.originalImage, state.activeChannels.a]);
 
   const handleZoom = useCallback((zoom: 'fit' | number) => {
     dispatch({ type: 'SET_ZOOM', payload: zoom });
@@ -211,6 +200,8 @@ export default function App() {
             open={isLevelsOpen}
             originalImageData={state.originalImage.imageData}
             snapshotImageData={levelsSnapshot}
+            channelModel={state.originalImage.channelModel}
+            activeChannels={state.activeChannels}
             onPreview={handleLevelsPreview}
             onApply={handleLevelsApply}
             onClose={() => { setIsLevelsOpen(false); }}
@@ -222,6 +213,8 @@ export default function App() {
             open={isKernelOpen}
             originalImageData={state.originalImage.imageData}
             snapshotImageData={kernelSnapshot}
+            channelModel={state.originalImage.channelModel}
+            activeChannels={state.activeChannels}
             onPreview={handleKernelPreview}
             onApply={handleKernelApply}
             onClose={() => { setIsKernelOpen(false); }}

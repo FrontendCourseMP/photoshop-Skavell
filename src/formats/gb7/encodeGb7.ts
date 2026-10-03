@@ -1,10 +1,11 @@
 import { GB7_SIGNATURE, GB7_VERSION, GB7_HEADER_SIZE, GB7_FLAGS_HAS_MASK } from './gb7Constants';
 
-export function encodeGb7(imageData: ImageData): Uint8Array {
+export function encodeGb7(imageData: ImageData, preserveMask = false): Uint8Array {
   const { width, height, data } = imageData;
   const pixelCount = width * height;
 
-  let useMask = false;
+  if (width > 65535 || height > 65535) throw new Error('GB7: размер превышает 65535');
+  let useMask = preserveMask;
   for (let i = 3; i < data.length; i += 4) {
     if (data[i] < 255) {
       useMask = true;
@@ -32,7 +33,7 @@ export function encodeGb7(imageData: ImageData): Uint8Array {
 
     const luma = 0.299 * r + 0.587 * g + 0.114 * b;
     const gray7 = Math.round((luma / 255) * 127);
-    const maskBit = useMask && a > 0 ? 0b1000_0000 : 0;
+    const maskBit = useMask && a >= 128 ? 0b1000_0000 : 0;
     out[GB7_HEADER_SIZE + i] = maskBit | gray7;
   }
 

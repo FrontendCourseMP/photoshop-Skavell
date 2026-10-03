@@ -9,12 +9,19 @@ import type { ActiveChannels } from '../app/store/imageTypes';
 export function applyChannelFilter(
   src: ImageData,
   channels: ActiveChannels,
+  hasAlpha = true,
 ): ImageData {
   const result = new ImageData(src.width, src.height);
   const srcData = src.data;
   const dstData = result.data;
 
+  const alphaOnly = hasAlpha && channels.a && !channels.r && !channels.g && !channels.b;
   for (let i = 0; i < srcData.length; i += 4) {
+    if (alphaOnly) {
+      dstData[i] = dstData[i + 1] = dstData[i + 2] = srcData[i + 3];
+      dstData[i + 3] = 255;
+      continue;
+    }
     dstData[i]     = channels.r ? srcData[i]     : 0;
     dstData[i + 1] = channels.g ? srcData[i + 1] : 0;
     dstData[i + 2] = channels.b ? srcData[i + 2] : 0;

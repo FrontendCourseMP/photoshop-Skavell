@@ -1,3 +1,4 @@
+import type { ChannelModel } from './channelModel';
 export type ImageFormat = 'png' | 'jpg' | 'jpeg' | 'gb7';
 
 /** Channel key used in ChannelPanel, buildChannelThumbnail and TOGGLE_CHANNEL action. */
@@ -17,7 +18,8 @@ export type LoadedImage = {
   height: number;
   colorDepth: ColorDepth;
   imageData: ImageData;
+  channelModel: ChannelModel;
   hasMask?: boolean;
-  /** true if at least one pixel has alpha < 255 (png only; jpg is always false) */
+  /** Source alpha structure, independent of pixel values */
   hasAlpha?: boolean;
 };

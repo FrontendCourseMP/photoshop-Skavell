@@ -1,32 +1,11 @@
 import type { ImageFormat } from '../../image/imageTypes';
 
-const EXTENSION_MAP: Readonly<Record<string, ImageFormat>> = {
-  png: 'png',
-  jpg: 'jpg',
-  jpeg: 'jpeg',
-  gb7: 'gb7',
-};
-
-// Allowed MIME types for raster formats; GB7 has no standard MIME type
-const MIME_FORMATS: Readonly<Record<string, ImageFormat>> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-};
-
-export function getFormatFromFile(file: File): ImageFormat | null {
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-  const byExt = EXTENSION_MAP[ext] ?? null;
-
-  // GB7 has no registered MIME type — trust extension + signature validation downstream
-  if (byExt === 'gb7') return 'gb7';
-
-  // For raster formats: require both extension and MIME to agree
-  const byMime = MIME_FORMATS[file.type] ?? null;
-  if (byExt !== null && byMime !== null) return byExt;
-
-  // Fallback: extension alone if MIME is empty string (some browsers omit it for local files)
-  if (byExt !== null && file.type === '') return byExt;
-
+/** File extensions and browser MIME types can be wrong; validate the body downstream. */
+export function getFormatFromBytes(bytes: Uint8Array): Exclude<ImageFormat, 'jpeg'> | null {
+  const startsWith = (signature: number[]) => signature.every((value, index) => bytes[index] === value);
+  if (startsWith([137, 80, 78, 71, 13, 10, 26, 10])) return 'png';
+  if (startsWith([0xff, 0xd8, 0xff])) return 'jpg';
+  if (startsWith([0x47, 0x42, 0x37, 0x1d])) return 'gb7';
   return null;
 }
 

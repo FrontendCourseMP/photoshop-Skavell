@@ -1,4 +1,5 @@
 import type { AppState, Action } from './imageTypes';
+import { applyChannelFilter } from '../../image/channelFilter';
 
 const DEFAULT_CHANNELS = { r: true, g: true, b: true, a: true } as const;
 
@@ -45,6 +46,7 @@ export function imageReducer(state: AppState, action: Action): AppState {
         return {
           ...state,
           activeChannels: { ...state.activeChannels, r: next, g: next, b: next },
+          workingImageData: state.originalImage ? applyChannelFilter(state.originalImage.imageData, { ...state.activeChannels, r: next, g: next, b: next }, state.originalImage.channelModel.alpha !== 'none') : null,
         };
       }
       return {
@@ -53,6 +55,7 @@ export function imageReducer(state: AppState, action: Action): AppState {
           ...state.activeChannels,
           [action.payload]: !state.activeChannels[action.payload],
         },
+        workingImageData: state.originalImage ? applyChannelFilter(state.originalImage.imageData, { ...state.activeChannels, [action.payload]: !state.activeChannels[action.payload] }, state.originalImage.channelModel.alpha !== 'none') : null,
       };
     }
     case 'SET_TOOL':
@@ -64,18 +67,13 @@ export function imageReducer(state: AppState, action: Action): AppState {
     case 'SET_PICKED_PIXEL':
       return { ...state, pickedPixel: action.payload };
     case 'APPLY_LEVELS':
-      if (state.originalImage === null) return state;
-      return {
-        ...state,
-        originalImage: { ...state.originalImage, imageData: action.payload },
-        workingImageData: action.payload,
-      };
     case 'APPLY_KERNEL':
       if (state.originalImage === null) return state;
       return {
         ...state,
         originalImage: { ...state.originalImage, imageData: action.payload },
-        workingImageData: action.payload,
+        workingImageData: applyChannelFilter(action.payload, state.activeChannels, state.originalImage.channelModel.alpha !== 'none'),
+        pickedPixel: null,
       };
     case 'SET_INTERPOLATION':
       return { ...state, interpolationMethod: action.payload };
@@ -89,7 +87,7 @@ export function imageReducer(state: AppState, action: Action): AppState {
           width: action.payload.width,
           height: action.payload.height,
         },
-        workingImageData: action.payload.imageData,
+        workingImageData: applyChannelFilter(action.payload.imageData, state.activeChannels, state.originalImage.channelModel.alpha !== 'none'),
         pickedPixel: null,
       };
     default:

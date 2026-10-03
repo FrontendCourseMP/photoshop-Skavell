@@ -106,6 +106,7 @@ export function StatusBar({
         flexShrink: 0,
         minHeight: 36,
         display: 'flex',
+        flexWrap: 'wrap',
         alignItems: 'center',
         gap: 1,
       }}
@@ -118,7 +119,7 @@ export function StatusBar({
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          flex: 1,
+          flex: { xs: '1 0 100%', sm: 1 },
           minWidth: 0,
         }}
       >
@@ -174,7 +175,7 @@ export function StatusBar({
         onChange={handleSliderChange}
         disabled={disabled}
         size="small"
-        sx={{ width: 100, mx: 1 }}
+        sx={{ width: { xs: 60, sm: 100 }, mx: 1 }}
       />
 
       {/* Zoom input */}

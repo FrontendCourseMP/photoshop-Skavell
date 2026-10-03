@@ -71,7 +71,7 @@ export function ImageToolbar({
       elevation={0}
       sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}
     >
-      <Toolbar variant="dense" disableGutters sx={{ px: 2, gap: 1, minHeight: 48 }}>
+      <Toolbar variant="dense" disableGutters sx={{ px: 2, gap: 1, minHeight: 48, flexWrap: 'wrap', py: 0.5 }}>
         <Typography
           variant="subtitle2"
           sx={{ fontWeight: 700, color: 'primary.main', mr: 1, flexShrink: 0 }}

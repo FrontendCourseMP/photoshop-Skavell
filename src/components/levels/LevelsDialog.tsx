@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
+import { DraggableDialog } from '../dialogs/DraggableDialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
@@ -11,49 +10,19 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import { BarChart, Bar, YAxis, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, YAxis, XAxis, Tooltip as ChartTooltip, ResponsiveContainer } from 'recharts';
 import { computeHistogram } from '../../image/histogram';
-import { buildLUT, applyLUT } from '../../image/levelsAdjustment';
-import type { HistChannel } from '../../image/histogram';
-import type { ChannelLUTs } from '../../image/levelsAdjustment';
-
-type ChannelSettings = { blackPoint: number; whitePoint: number; gamma: number };
-type LevelsChannel = 'master' | 'r' | 'g' | 'b' | 'a';
-
-const DEFAULT_SETTINGS: ChannelSettings = { blackPoint: 0, whitePoint: 255, gamma: 1.0 };
-
-function makeDefaultSettings(): Record<LevelsChannel, ChannelSettings> {
-  return {
-    master: { ...DEFAULT_SETTINGS },
-    r: { ...DEFAULT_SETTINGS },
-    g: { ...DEFAULT_SETTINGS },
-    b: { ...DEFAULT_SETTINGS },
-    a: { ...DEFAULT_SETTINGS },
-  };
-}
-
-const CHANNEL_LABELS: Record<LevelsChannel, string> = {
-  master: 'Master', r: 'R', g: 'G', b: 'B', a: 'A',
-};
-
-/** Maps gamma value to a position in [blackPoint, whitePoint] on the 0–255 scale.
- *  Left of center (t < 0.5) = gamma > 1 = lightens. */
-function calcGammaPos(black: number, white: number, gamma: number): number {
-  if (white <= black + 1) return black + 1;
-  const t = Math.pow(0.5, gamma);
-  return Math.round(black + (white - black) * t);
-}
-
-/** Recovers gamma from slider position. */
-function calcGammaFromPos(black: number, white: number, pos: number): number {
-  const range = white - black;
-  if (range <= 0) return 1.0;
-  const t = Math.max(0.001, Math.min(0.999, (pos - black) / range));
-  return Math.max(0.10, Math.min(9.99, Math.log(t) / Math.log(0.5)));
-}
+import { applyLevels, makeDefaultSettings, updateLevels, calcGammaPos, calcGammaFromPos } from '../../image/levelsAdjustment';
+import type { LevelsChannel, ChannelSettings } from '../../image/levelsAdjustment';
+import { getChannels } from '../../image/channelModel';
+import type { ChannelModel } from '../../image/channelModel';
+import type { ActiveChannels } from '../../app/store/imageTypes';
+import { applyChannelFilter } from '../../image/channelFilter';
 
 type Props = {
   open: boolean;
+  channelModel: ChannelModel;
+  activeChannels: ActiveChannels;
   originalImageData: ImageData;
   snapshotImageData: ImageData;
   onPreview: (imageData: ImageData) => void;
@@ -63,6 +32,8 @@ type Props = {
 
 export function LevelsDialog({
   open,
+  channelModel,
+  activeChannels,
   originalImageData,
   snapshotImageData,
   onPreview,
@@ -70,30 +41,27 @@ export function LevelsDialog({
   onClose,
 }: Props) {
   // Initial state matches defaults — no reset effect needed (dialog is conditionally mounted)
-  const [settings, setSettings] = useState<Record<LevelsChannel, ChannelSettings>>(makeDefaultSettings);
+  const [settings, setSettings] = useState(() => makeDefaultSettings(channelModel));
   const [activeChannel, setActiveChannel] = useState<LevelsChannel>('master');
   const [preview, setPreview] = useState(true);
   const [logScale, setLogScale] = useState(false);
   const rafRef = useRef<number | null>(null);
 
+  const channels = [{ key: 'master' as const, label: 'Master', max: channelModel.color === 'gray' ? channelModel.grayMax : 255 }, ...getChannels(channelModel)];
+  const max = channels.find(ch => ch.key === activeChannel)!.max;
+  const closedRef = useRef(false);
+
   const histData = useMemo(() => {
-    const channel = activeChannel as HistChannel;
-    const counts = computeHistogram(originalImageData, channel);
+    const counts = computeHistogram(originalImageData, activeChannel, max);
     return counts.map((count, x) => ({
       x,
       count: logScale ? Math.log1p(count) : count,
     }));
-  }, [originalImageData, activeChannel, logScale]);
+  }, [originalImageData, activeChannel, logScale, max]);
 
   const computeResult = useCallback((): ImageData => {
-    const luts: ChannelLUTs = {
-      r: buildLUT(settings.r.blackPoint, settings.r.whitePoint, settings.r.gamma),
-      g: buildLUT(settings.g.blackPoint, settings.g.whitePoint, settings.g.gamma),
-      b: buildLUT(settings.b.blackPoint, settings.b.whitePoint, settings.b.gamma),
-      a: buildLUT(settings.a.blackPoint, settings.a.whitePoint, settings.a.gamma),
-    };
-    return applyLUT(originalImageData, luts);
-  }, [settings, originalImageData]);
+    return applyLevels(originalImageData, channelModel, settings);
+  }, [settings, originalImageData, channelModel]);
 
   // Re-run preview on settings or preview toggle change
   useEffect(() => {
@@ -104,7 +72,7 @@ export function LevelsDialog({
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
-      onPreview(computeResult());
+      if (!closedRef.current) onPreview(applyChannelFilter(computeResult(), activeChannels, channelModel.alpha !== 'none'));
     });
     return () => {
       if (rafRef.current !== null) {
@@ -112,60 +80,45 @@ export function LevelsDialog({
         rafRef.current = null;
       }
     };
-  }, [preview, snapshotImageData, onPreview, computeResult]);
+  }, [preview, snapshotImageData, onPreview, computeResult, activeChannels, channelModel]);
 
   function updateChannel(partial: Partial<ChannelSettings>) {
-    if (activeChannel === 'master') {
-      setSettings(prev => ({
-        ...prev,
-        r: { ...prev.r, ...partial },
-        g: { ...prev.g, ...partial },
-        b: { ...prev.b, ...partial },
-      }));
-    } else {
-      setSettings(prev => ({
-        ...prev,
-        [activeChannel]: { ...prev[activeChannel], ...partial },
-      }));
-    }
+    setSettings(prev => updateLevels(prev, activeChannel, partial));
   }
 
   function handleCancel() {
+    closedRef.current = true;
     onPreview(snapshotImageData);
     onClose();
   }
 
   function handleApply() {
+    if (closedRef.current) return;
+    closedRef.current = true;
     onApply(computeResult());
     onClose();
   }
 
   function handleReset() {
-    setSettings(makeDefaultSettings());
+    setSettings(makeDefaultSettings(channelModel));
   }
 
-  // Master channel displays R (all three are kept in sync)
-  const current: ChannelSettings = activeChannel === 'master' ? settings.r : settings[activeChannel];
+  const current: ChannelSettings = settings[activeChannel];
 
   const gammaPos = calcGammaPos(current.blackPoint, current.whitePoint, current.gamma);
   const sliderValue: [number, number, number] = [current.blackPoint, gammaPos, current.whitePoint];
 
-  function handleInputLevelsChange(_: Event, newValues: number | number[]) {
-    const [newBlack, newGammaPos, newWhite] = newValues as number[];
-
-    if (newBlack !== current.blackPoint) {
-      updateChannel({ blackPoint: newBlack });
-    } else if (newWhite !== current.whitePoint) {
-      updateChannel({ whitePoint: newWhite });
-    } else if (newGammaPos !== gammaPos) {
-      updateChannel({ gamma: calcGammaFromPos(current.blackPoint, current.whitePoint, newGammaPos) });
-    }
+  function handleInputLevelsChange(_: Event, values: number | number[], thumb: number) {
+    const v = values as number[];
+    if (thumb === 0) updateChannel({ blackPoint: Math.min(Math.round(v[0]), current.whitePoint - 1) });
+    if (thumb === 2) updateChannel({ whitePoint: Math.max(Math.round(v[2]), current.blackPoint + 1) });
+    if (thumb === 1) updateChannel({ gamma: calcGammaFromPos(current.blackPoint, current.whitePoint, v[1]) });
   }
 
   return (
-    <Dialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ pb: 1 }}>Уровни</DialogTitle>
+    <DraggableDialog open={open} onClose={handleCancel} maxWidth="sm" title="Уровни">
       <DialogContent>
+        {channelModel.alpha === 'mask' && <Typography variant="caption" sx={{ display: 'block' }}>Mask / Alpha: рабочая шкала 0–255; при экспорте GB7 порог 128.</Typography>}
 
         {/* Channel selector */}
         <Box sx={{ mb: 2 }}>
@@ -177,14 +130,15 @@ export function LevelsDialog({
             }}
             size="small"
           >
-            {(['master', 'r', 'g', 'b', 'a'] as LevelsChannel[]).map(ch => (
-              <ToggleButton key={ch} value={ch}>
-                {CHANNEL_LABELS[ch]}
+            {channels.map(ch => (
+              <ToggleButton key={ch.key} value={ch.key}>
+                {ch.label}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
         </Box>
 
+        <Typography variant="caption">Канал → Master; Master не меняет Alpha. Диапазон: 0–{max}.</Typography>
         {/* Log/Linear scale toggle */}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
           <ToggleButtonGroup
@@ -217,7 +171,9 @@ export function LevelsDialog({
               barCategoryGap={0}
               barGap={0}
             >
-              <YAxis hide domain={['auto', 'auto']} />
+              <YAxis width={40} tick={{ fontSize: 10 }} />
+              <XAxis dataKey="x" type="number" domain={[0, max]} ticks={[0, max]} tick={{ fontSize: 10 }} />
+              <ChartTooltip formatter={value => logScale ? Math.round(Math.expm1(Number(value))) : value} />
               <Bar dataKey="count" isAnimationActive={false} barSize={2} fill="#90caf9" />
             </BarChart>
           </ResponsiveContainer>
@@ -234,11 +190,12 @@ export function LevelsDialog({
         <Box sx={{ px: 1, mb: 0 }}>
           <Slider
             min={0}
-            max={255}
+            max={max}
             value={sliderValue}
             onChange={handleInputLevelsChange}
             disableSwap
             step={1}
+            getAriaLabel={i => ['Чёрная точка', 'Гамма', 'Белая точка'][i]}
             size="small"
             track={false}
             sx={{
@@ -282,6 +239,6 @@ export function LevelsDialog({
           Применить
         </Button>
       </DialogActions>
-    </Dialog>
+    </DraggableDialog>
   );
 }

@@ -7,29 +7,7 @@ import { renderToCanvas } from '../../image/canvasUtils';
 import type { LoadedImage, ChannelKey } from '../../image/imageTypes';
 import type { ActiveChannels } from '../../app/store/imageTypes';
 
-type ChannelDef = {
-  key: ChannelKey;
-  label: string;
-};
-
-function getChannels(image: LoadedImage): ChannelDef[] {
-  if (image.format === 'gb7') {
-    const chs: ChannelDef[] = [{ key: 'gray', label: 'Gray' }];
-    if (image.hasMask === true) {
-      chs.push({ key: 'a', label: 'Alpha' });
-    }
-    return chs;
-  }
-  const channels: ChannelDef[] = [
-    { key: 'r', label: 'R' },
-    { key: 'g', label: 'G' },
-    { key: 'b', label: 'B' },
-  ];
-  if (image.hasAlpha === true) {
-    channels.push({ key: 'a', label: 'A' });
-  }
-  return channels;
-}
+import { getChannels } from '../../image/channelModel';
 
 function isActive(key: ChannelKey, activeChannels: ActiveChannels): boolean {
   if (key === 'gray') {
@@ -48,7 +26,7 @@ export function ChannelPanel({ image, activeChannels, onToggle }: Props) {
   const canvasRefs = useRef<Map<ChannelKey, HTMLCanvasElement>>(new Map());
 
   useEffect(() => {
-    const channels = getChannels(image);
+    const channels = getChannels(image.channelModel);
     channels.forEach(({ key }) => {
       const canvas = canvasRefs.current.get(key);
       if (canvas === undefined) return;
@@ -61,7 +39,7 @@ export function ChannelPanel({ image, activeChannels, onToggle }: Props) {
     });
   }, [image]);
 
-  const channels = getChannels(image);
+  const channels = getChannels(image.channelModel);
 
   return (
     <Box

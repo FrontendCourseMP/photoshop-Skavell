@@ -20,9 +20,10 @@ function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality?: num
 export async function exportImageAsBlob(
   imageData: ImageData,
   format: 'png' | 'jpg' | 'gb7',
+  preserveMask = false,
 ): Promise<Blob> {
   if (format === 'gb7') {
-    const bytes = encodeGb7(imageData);
+    const bytes = encodeGb7(imageData, preserveMask);
     // encodeGb7 always allocates a plain ArrayBuffer; cast is safe
     return new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' });
   }

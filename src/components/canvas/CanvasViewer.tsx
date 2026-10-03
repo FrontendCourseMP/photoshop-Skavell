@@ -64,7 +64,7 @@ export function CanvasViewer({
         (cW - 100) / imageData.width,
         (cH - 100) / imageData.height,
       );
-      effectiveZoom = Math.min(300, Math.max(12, Math.round(scale * 100)));
+      effectiveZoom = Math.min(300, Math.max(12, Math.floor(scale * 100)));
     } else if (typeof zoom === 'number') {
       effectiveZoom = zoom;
     } else {
@@ -93,20 +93,20 @@ export function CanvasViewer({
 
       const rect = canvas.getBoundingClientRect();
       // canvas.width = scaled width; map click coordinates back to original image space
-      const canvasX = Math.floor(e.clientX - rect.left);
-      const canvasY = Math.floor(e.clientY - rect.top);
+      const canvasX = e.clientX - rect.left;
+      const canvasY = e.clientY - rect.top;
 
       const x = Math.max(
         0,
         Math.min(
-          Math.floor((canvasX / canvas.width) * originalImageData.width),
+          Math.floor((canvasX / rect.width) * originalImageData.width),
           originalImageData.width - 1,
         ),
       );
       const y = Math.max(
         0,
         Math.min(
-          Math.floor((canvasY / canvas.height) * originalImageData.height),
+          Math.floor((canvasY / rect.height) * originalImageData.height),
           originalImageData.height - 1,
         ),
       );
@@ -127,12 +127,13 @@ export function CanvasViewer({
       ref={containerRef}
       sx={{
         flex: 1,
+        minHeight: 0,
         overflow: 'auto',
         display: 'flex',
         alignItems: imageData === null ? 'center' : 'flex-start',
         justifyContent: imageData === null ? 'center' : 'flex-start',
         bgcolor: '#1a1a1a',
-        p: imageData === null ? 0 : 1,
+        p: 0,
       }}
     >
       {imageData === null ? (
@@ -140,14 +141,22 @@ export function CanvasViewer({
           Нажми «Открыть» для загрузки изображения
         </Typography>
       ) : (
+        <Box sx={{ m: 'auto', p: '50px', flexShrink: 0 }}>
         <canvas
           ref={canvasRef}
+          aria-label="Изображение"
           onClick={handleClick}
           style={{
             display: 'block',
+            outline: '1px solid #eee',
+            boxShadow: '0 0 0 2px #333',
+            backgroundColor: '#444',
+            backgroundImage: 'conic-gradient(#383838 25%, transparent 0 50%, #383838 0 75%, transparent 0)',
+            backgroundSize: '24px 24px',
             cursor: activeTool === 'eyedropper' ? 'crosshair' : 'default',
           }}
         />
+        </Box>
       )}
     </Box>
   );

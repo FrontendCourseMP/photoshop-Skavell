@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { ChangeEvent } from 'react';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
+import { DraggableDialog } from '../dialogs/DraggableDialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
@@ -160,8 +159,7 @@ export function ResizeDialog({ open, image, interpolationMethod, onApply, onClos
   const unitLabel = unit === 'px' ? 'px' : '%';
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Изменить размер изображения</DialogTitle>
+    <DraggableDialog open={open} onClose={onClose} maxWidth="xs" title="Изменить размер изображения">
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           {/* Before / After info */}
@@ -256,6 +254,6 @@ export function ResizeDialog({ open, image, interpolationMethod, onApply, onClos
           Применить
         </Button>
       </DialogActions>
-    </Dialog>
+    </DraggableDialog>
   );
 }

@@ -19,6 +19,7 @@ type WorkerOutgoing =
 export function useKernelWorker(): {
   run: (params: RunParams) => Promise<ImageData>;
   isRunning: boolean;
+  cancel: () => void;
 } {
   const workerRef = useRef<Worker | null>(null);
   const seqRef = useRef<number>(0);
@@ -27,6 +28,14 @@ export function useKernelWorker(): {
   const pendingRejectRef = useRef<((e: unknown) => void) | null>(null);
 
   const [isRunning, setIsRunning] = useState(false);
+
+  const cancel = useCallback(() => {
+    lastSeqRef.current = ++seqRef.current;
+    pendingRejectRef.current?.(new DOMException('cancelled', 'AbortError'));
+    pendingRejectRef.current = null;
+    pendingResolveRef.current = null;
+    setIsRunning(false);
+  }, []);
 
   useEffect(() => {
     const worker = new KernelWorker();
@@ -54,7 +63,16 @@ export function useKernelWorker(): {
       }
     };
 
+    worker.onerror = event => {
+      pendingRejectRef.current?.(new Error(event.message || 'Ошибка worker'));
+      pendingRejectRef.current = null;
+      pendingResolveRef.current = null;
+      setIsRunning(false);
+    };
     return () => {
+      pendingRejectRef.current?.(new DOMException('cancelled', 'AbortError'));
+      pendingRejectRef.current = null;
+      pendingResolveRef.current = null;
       worker.terminate();
       workerRef.current = null;
     };
@@ -70,17 +88,30 @@ export function useKernelWorker(): {
     }
 
     return new Promise<ImageData>((resolve, reject) => {
+      const worker = workerRef.current;
+      if (!worker) {
+        pendingResolveRef.current = null;
+        pendingRejectRef.current = null;
+        setIsRunning(false);
+        reject(new Error('Worker недоступен'));
+        return;
+      }
+
       pendingResolveRef.current = resolve;
       pendingRejectRef.current = reject;
       setIsRunning(true);
 
-      const sendBuffer = params.buffer.slice(0);
-      workerRef.current!.postMessage(
-        { ...params, id, buffer: sendBuffer },
-        [sendBuffer],
-      );
+      try {
+        const sendBuffer = params.buffer.slice(0);
+        worker.postMessage({ ...params, id, buffer: sendBuffer }, [sendBuffer]);
+      } catch (error) {
+        pendingResolveRef.current = null;
+        pendingRejectRef.current = null;
+        setIsRunning(false);
+        reject(error);
+      }
     });
   }, []);
 
-  return { run, isRunning };
+  return { run, cancel, isRunning };
 }

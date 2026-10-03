@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { DraggableDialog } from '../dialogs/DraggableDialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
@@ -13,7 +12,12 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import type { EdgeStrategy, KernelChannel } from '../../image/kernelFilter';
+import type { EdgeStrategy } from '../../image/kernelFilter';
+import { getChannels, expandChannels } from '../../image/channelModel';
+import type { ChannelModel } from '../../image/channelModel';
+import type { ChannelKey } from '../../image/imageTypes';
+import type { ActiveChannels } from '../../app/store/imageTypes';
+import { applyChannelFilter } from '../../image/channelFilter';
 import { useKernelWorker } from './useKernelWorker';
 
 type PresetName = 'identity' | 'sharpen' | 'gaussian' | 'boxblur' | 'prewittX' | 'prewittY' | 'custom';
@@ -44,6 +48,8 @@ const PRESET_ORDER: PresetName[] = ['identity', 'sharpen', 'gaussian', 'boxblur'
 
 type Props = {
   open: boolean;
+  channelModel: ChannelModel;
+  activeChannels: ActiveChannels;
   originalImageData: ImageData;
   snapshotImageData: ImageData;
   onPreview: (imageData: ImageData) => void;
@@ -53,6 +59,8 @@ type Props = {
 
 export function KernelDialog({
   open,
+  channelModel,
+  activeChannels,
   originalImageData,
   snapshotImageData,
   onPreview,
@@ -65,121 +73,83 @@ export function KernelDialog({
   const [preset, setPreset] = useState<PresetName>('identity');
   const [lastPreset, setLastPreset] = useState<RealPresetName>('identity');
   const [normalize, setNormalize] = useState(false);
-  const [channels, setChannels] = useState({ r: true, g: true, b: true });
+  const available = useMemo(() => getChannels(channelModel), [channelModel]);
+  const [channels, setChannels] = useState<ChannelKey[]>(() => available.filter(ch => ch.key !== 'a').map(ch => ch.key));
+  const [error, setError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const closedRef = useRef(false);
+  const applyingRef = useRef(false);
+  const revisionRef = useRef(0);
   const [edge, setEdge] = useState<EdgeStrategy>('black');
   const [preview, setPreview] = useState(true);
   const rafRef = useRef<number>(0);
 
-  const { run, isRunning } = useKernelWorker();
+  const { run, cancel, isRunning } = useKernelWorker();
 
 
-  function parseKernel(): number[][] | null {
-    const result: number[][] = [];
-    for (const row of kernelFields) {
-      const parsedRow: number[] = [];
-      for (const cell of row) {
-        const v = parseFloat(cell);
-        if (!isFinite(v)) return null;
-        parsedRow.push(v);
-      }
-      result.push(parsedRow);
-    }
-    return result;
-  }
-
-  const allChecked = channels.r && channels.g && channels.b;
-  const allIndeterminate = (channels.r || channels.g || channels.b) && !allChecked;
-
+  const kernel = useMemo(() => {
+    const parsed = kernelFields.map(row => row.map(cell => cell.trim() === '' ? NaN : Number(cell)));
+    return parsed.flat().every(Number.isFinite) ? parsed : null;
+  }, [kernelFields]);
+  const channelList = useMemo(() => expandChannels(channels), [channels]);
+  const allChecked = channels.length === available.length;
+  const allIndeterminate = channels.length > 0 && !allChecked;
   function toggleAll() {
-    const next = !allChecked;
-    setChannels(prev => ({ ...prev, r: next, g: next, b: next }));
+    setChannels(allChecked ? [] : available.map(ch => ch.key));
   }
 
-  function getChannelList(): KernelChannel[] {
-    const list: KernelChannel[] = [];
-    if (channels.r) list.push('r');
-    if (channels.g) list.push('g');
-    if (channels.b) list.push('b');
-    return list;
-  }
-
-  // Preview effect with RAF debounce + isRunning guard
   useEffect(() => {
-    if (!preview) {
+    const revision = ++revisionRef.current;
+    if (!preview || kernel === null || channelList.length === 0) {
       onPreview(snapshotImageData);
       return;
     }
-
-    if (rafRef.current !== 0) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = 0;
-    }
-
     rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = 0;
-      const kernel = parseKernel();
-      if (kernel === null) return;
-      const channelList = getChannelList();
-      if (channelList.length === 0) {
-        onPreview(snapshotImageData);
-        return;
-      }
-
-      run({
-        buffer: originalImageData.data.buffer,
-        width: originalImageData.width,
-        height: originalImageData.height,
-        kernel,
-        channels: channelList,
-        edge,
-        normalize,
-      })
-        .then((result) => { onPreview(result); })
+      run({ buffer: originalImageData.data.buffer, width: originalImageData.width, height: originalImageData.height, kernel, channels: channelList, edge, normalize })
+        .then(result => {
+          if (revision === revisionRef.current && !closedRef.current && !applyingRef.current) {
+            setError(null);
+            onPreview(applyChannelFilter(result, activeChannels, channelModel.alpha !== 'none'));
+          }
+        })
         .catch((e: unknown) => {
           if (e instanceof DOMException && e.name === 'AbortError') return;
-          // other errors: ignore for preview
+          if (revision === revisionRef.current && !closedRef.current) setError(String(e));
         });
     });
-
     return () => {
-      if (rafRef.current !== 0) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = 0;
-      }
+      revisionRef.current = revision + 1;
+      cancelAnimationFrame(rafRef.current);
+      cancel();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preview, kernelFields, channels, edge, normalize, originalImageData, snapshotImageData, onPreview, run]);
+  }, [preview, kernel, channelList, edge, normalize, originalImageData, snapshotImageData, onPreview, run, cancel, activeChannels, channelModel]);
 
   function handleApply() {
-    if (rafRef.current !== 0) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = 0;
-    }
-
-    const kernel = parseKernel();
-    if (kernel === null) return;
-    const channelList = getChannelList();
-    if (channelList.length === 0) return;
-
-    run({
-      buffer: originalImageData.data.buffer,
-      width: originalImageData.width,
-      height: originalImageData.height,
-      kernel,
-      channels: channelList,
-      edge,
-      normalize,
-    })
-      .then((result) => {
+    if (applyingRef.current || closedRef.current || kernel === null || channelList.length === 0) return;
+    applyingRef.current = true;
+    setApplying(true);
+    ++revisionRef.current;
+    cancelAnimationFrame(rafRef.current);
+    run({ buffer: originalImageData.data.buffer, width: originalImageData.width, height: originalImageData.height, kernel, channels: channelList, edge, normalize })
+      .then(result => {
+        if (closedRef.current) return;
+        closedRef.current = true;
         onApply(result);
         onClose();
       })
       .catch((e: unknown) => {
-        if (e instanceof DOMException && e.name === 'AbortError') return;
+        if (closedRef.current) return;
+        applyingRef.current = false;
+        setApplying(false);
+        if (!(e instanceof DOMException && e.name === 'AbortError')) setError(String(e));
       });
   }
 
   function handleCancel() {
+    closedRef.current = true;
+    ++revisionRef.current;
+    cancelAnimationFrame(rafRef.current);
+    cancel();
     onPreview(snapshotImageData);
     onClose();
   }
@@ -210,13 +180,15 @@ export function KernelDialog({
     setPreset('custom');
   }
 
-  const kernelIsValid = parseKernel() !== null;
-  const channelList = getChannelList();
+  const kernelIsValid = kernel !== null;
 
   return (
-    <Dialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ pb: 1 }}>Ядра / Фильтры</DialogTitle>
+    <DraggableDialog open={open} onClose={handleCancel} maxWidth="sm" title="Ядра / Фильтры">
       <DialogContent>
+        {channelModel.alpha === 'mask' && <Typography variant="caption" sx={{ display: 'block' }}>Mask / Alpha: рабочая шкала 0–255; при экспорте GB7 порог 128.</Typography>}
+        {error && <Typography color="error">{error}</Typography>}
+        <Box component="fieldset" disabled={applying} sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
+        <Typography variant="caption">All включает все каналы, в том числе Alpha. Изначально выбраны только цветовые.</Typography>
 
         {/* Preset Select */}
         <FormControl size="small" fullWidth sx={{ mb: 2, mt: 1 }}>
@@ -238,14 +210,14 @@ export function KernelDialog({
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, my: 2 }}>
           {kernelFields.map((row, ri) =>
             row.map((cell, ci) => {
-              const isError = !isFinite(parseFloat(cell));
+              const isError = cell.trim() === '' || !Number.isFinite(Number(cell));
               return (
                 <TextField
                   key={`${ri}-${ci}`}
                   size="small"
                   value={cell}
                   error={isError}
-                  slotProps={{ htmlInput: { style: { textAlign: 'center' } } }}
+                  slotProps={{ htmlInput: { 'aria-label': `Ядро ${ri + 1},${ci + 1}`, style: { textAlign: 'center' } } }}
                   onChange={e => { handleFieldChange(ri, ci, e.target.value); }}
                 />
               );
@@ -267,36 +239,11 @@ export function KernelDialog({
             }
             label="All"
           />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={channels.r}
-                onChange={e => { setChannels(prev => ({ ...prev, r: e.target.checked })); }}
-                size="small"
-              />
-            }
-            label="R"
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={channels.g}
-                onChange={e => { setChannels(prev => ({ ...prev, g: e.target.checked })); }}
-                size="small"
-              />
-            }
-            label="G"
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={channels.b}
-                onChange={e => { setChannels(prev => ({ ...prev, b: e.target.checked })); }}
-                size="small"
-              />
-            }
-            label="B"
-          />
+          {available.map(ch => (
+            <FormControlLabel key={ch.key} label={ch.label} control={
+              <Checkbox size="small" checked={channels.includes(ch.key)} onChange={e => setChannels(prev => e.target.checked ? [...prev, ch.key] : prev.filter(key => key !== ch.key))} />
+            } />
+          ))}
         </Box>
 
         {/* Edge strategy Select */}
@@ -337,19 +284,20 @@ export function KernelDialog({
           />
         </Box>
 
+        </Box>
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={handleReset} disabled={preset !== 'custom'}>Сброс</Button>
+        <Button onClick={handleReset} disabled={applying}>Сброс</Button>
         <Button onClick={handleCancel}>Отмена</Button>
         <Button
           variant="contained"
           onClick={handleApply}
-          disabled={isRunning || !kernelIsValid || channelList.length === 0}
+          disabled={applying || isRunning || !kernelIsValid || channelList.length === 0}
         >
           {isRunning ? 'Обработка...' : 'Применить'}
         </Button>
       </DialogActions>
-    </Dialog>
+    </DraggableDialog>
   );
 }

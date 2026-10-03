@@ -35,8 +35,8 @@ export function applyKernel(
         let acc = 0;
         for (let ky = 0; ky < 3; ky++) {
           for (let kx = 0; kx < 3; kx++) {
-            const ny = y + ky - 1;
-            const nx = x + kx - 1;
+            const ny = y + 1 - ky;
+            const nx = x + 1 - kx;
             let val: number;
             if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
               if (edge === 'clamp') {
